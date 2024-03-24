@@ -1,1 +1,1 @@
-See: https://digitalbunker.dev/dvd-screensaver-swiftui/
+Demo & Blog: https://digitalbunker.dev/dvd-screensaver-swiftui/

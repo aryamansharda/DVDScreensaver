@@ -7,12 +7,38 @@
 
 import SwiftUI
 
+@MainActor
+final class DisplayLink {
+    private var displaylink: CADisplayLink?
+    private var update: (() -> Void)?
+
+    func start(update: @escaping () -> Void) {
+        self.update = update
+
+        // CADisplayLink represents a timer bound to the refresh rate of the device's display
+        displaylink = CADisplayLink(
+            target: self,
+            selector: #selector(frame)
+        )
+        displaylink?.add(to: .current, forMode: .default)
+    }
+
+    func stop() {
+        displaylink?.invalidate()
+        update = nil
+    }
+
+    @objc func frame() {
+        update?()
+    }
+}
+
+@MainActor
 struct ContentView: View {
     @State private var position: CGPoint = .zero
     @State private var velocity: CGVector = CGVector(dx: 5, dy: 5)
     @State private var imageColor: Color = .green
-
-    private let framesPerSecond: Double = 1 / 30
+    @State private var displayLink = DisplayLink()
 
     private let canvasSize: CGSize = UIScreen.main.bounds.size
     private let imageSize: CGSize = CGSize(width: 128, height: 76)
@@ -31,30 +57,34 @@ struct ContentView: View {
                 in: CGRect(x: position.x, y: position.y, width: imageSize.width, height: imageSize.height)
             )
         }
-        .onReceive(Timer.publish(every: framesPerSecond, on: .main, in: .common).autoconnect()) { _ in
-            // Update position based on velocity
-            self.position.x += self.velocity.dx
-            self.position.y += self.velocity.dy
-
-            // Check if image hits an edge
-            if self.position.x + self.imageSize.width >= canvasSize.width || self.position.x <= 0  {
-                // Flip horizontal direction
-                self.velocity.dx *= -1
-                self.imageColor = Color.random()
-            }
-
-            if self.position.y + self.imageSize.height >= canvasSize.height ||  self.position.y <= 0 {
-                // Flip vertical direction
-                self.velocity.dy *= -1
-                self.imageColor = Color.random()
-            }
-        }
         .onAppear {
             // Set initial position to the center of the canvas after the view appears
             position = CGPoint(
                 x: (canvasSize.width - imageSize.width) / 2,
                 y: (canvasSize.height - imageSize.height) / 2
             )
+
+            displayLink.start {
+                // Update position based on velocity
+                position.x += velocity.dx
+                position.y += velocity.dy
+
+                // Check if image hits an edge
+                if position.x + imageSize.width >= canvasSize.width || position.x <= 0  {
+                    // Flip horizontal direction
+                    velocity.dx *= -1
+                    imageColor = Color.random()
+                }
+
+                if position.y + imageSize.height >= canvasSize.height || position.y <= 0 {
+                    // Flip vertical direction
+                    velocity.dy *= -1
+                    imageColor = Color.random()
+                }
+            }
+        }
+        .onDisappear {
+            displayLink.stop()
         }
         .ignoresSafeArea()
     }
